@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -56,6 +57,9 @@
             </a>
         </div>
         <div class="nav-actions">
+            <button class="btn-icon" id="exportBtn" title="Export Problems to JSON" onclick="exportProblems()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
             <button class="btn-icon" id="searchToggle" title="Search">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             </button>
@@ -310,17 +314,44 @@
                     </div>
                     <div class="form-group full-width">
                         <label class="form-label">Solution Code *</label>
-                        <select class="form-input form-lang-select" id="formLanguage">
-                            <option value="python">Python</option>
-                            <option value="javascript">JavaScript</option>
-                            <option value="java">Java</option>
-                            <option value="cpp">C++</option>
-                            <option value="c">C</option>
-                            <option value="go">Go</option>
-                            <option value="rust">Rust</option>
-                            <option value="other">Other</option>
-                        </select>
-                        <textarea class="form-textarea code-textarea" id="formSolution" rows="10" placeholder="Paste your solution code here..." required></textarea>
+                        <!-- VS Code-style Editor -->
+                        <div class="vscode-editor" id="vsCodeEditor">
+                            <div class="vscode-titlebar">
+                                <div class="vscode-tabs">
+                                    <div class="vscode-tab active">
+                                        <span class="vscode-tab-icon">📄</span>
+                                        <span class="vscode-tab-name" id="vsTabName">solution.py</span>
+                                        <span class="vscode-tab-dot"></span>
+                                    </div>
+                                </div>
+                                <select class="vscode-lang-select" id="formLanguage">
+                                    <option value="python">Python</option>
+                                    <option value="javascript">JavaScript</option>
+                                    <option value="java">Java</option>
+                                    <option value="cpp">C++</option>
+                                    <option value="c">C</option>
+                                    <option value="go">Go</option>
+                                    <option value="rust">Rust</option>
+                                    <option value="sql">SQL</option>
+                                    <option value="typescript">TypeScript</option>
+                                    <option value="csharp">C#</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="vscode-body">
+                                <div class="vscode-line-numbers" id="lineNumbers"><span>1</span></div>
+                                <div class="vscode-editor-area">
+                                    <pre class="vscode-highlight" id="codeHighlight" aria-hidden="true"><code class="language-python"></code></pre>
+                                    <textarea class="vscode-textarea" id="formSolution" placeholder="Paste your solution code here..." spellcheck="false" required></textarea>
+                                </div>
+                            </div>
+                            <div class="vscode-statusbar">
+                                <span class="vscode-status-item" id="vsStatusLang">Python</span>
+                                <span class="vscode-status-item" id="vsStatusLines">Ln 1, Col 1</span>
+                                <span class="vscode-status-item">UTF-8</span>
+                                <span class="vscode-status-item">Spaces: 4</span>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Time Complexity</label>
@@ -407,6 +438,15 @@
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -1,7 +1,55 @@
 // ===== DATA LAYER =====
+// Base problems loaded from problems.json (visible to all visitors)
+// localStorage additions are layered on top (only visible to the local user)
 const DB_KEY = 'codevault_problems';
-const getProblems = () => JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+let baseProblems = []; // Loaded from problems.json
+
+// Load base problems from the static JSON file
+async function loadBaseProblems() {
+  try {
+    const resp = await fetch('problems.json');
+    if (resp.ok) {
+      baseProblems = await resp.json();
+    }
+  } catch (e) {
+    console.log('No problems.json found, using localStorage only');
+  }
+  // Initialize the app after loading base data
+  refreshDashboard();
+}
+
+// Get all problems: base (from JSON) + local additions (from localStorage)
+function getProblems() {
+  const localProblems = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  // Merge: base problems + local problems, deduplicate by id
+  const allProblems = [...baseProblems];
+  const baseIds = new Set(baseProblems.map(p => p.id));
+  localProblems.forEach(p => {
+    if (!baseIds.has(p.id)) {
+      allProblems.push(p);
+    }
+  });
+  // Sort by date descending
+  allProblems.sort((a, b) => new Date(b.date) - new Date(a.date));
+  return allProblems;
+}
+
+// Save only local additions to localStorage
 const saveProblems = (p) => localStorage.setItem(DB_KEY, JSON.stringify(p));
+
+// Export all problems as JSON (for updating problems.json)
+function exportProblems() {
+  const allProblems = getProblems();
+  const json = JSON.stringify(allProblems, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'problems.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Problems exported! Replace problems.json in your repo and push.', 'success');
+}
 
 // ===== ACTION ANIME BACKGROUND (Energy + Lightning + Embers) =====
 const canvas = document.getElementById('particleCanvas');
@@ -270,13 +318,19 @@ function openProblem(id) {
     </div>
     <div class="modal-section"><h4>📋 Problem Statement</h4><p>${escHtml(p.question)}</p></div>
     <div class="modal-section"><h4>💡 Approach</h4><p>${escHtml(p.approach)}</p></div>
-    <div class="modal-section"><h4>💻 Solution (${p.language || 'code'})</h4><pre>${escHtml(p.solution)}</pre></div>
+    <div class="modal-section"><h4>💻 Solution</h4><pre><code class="language-${p.language || 'plaintext'}">${escHtml(p.solution)}</code></pre></div>
     ${p.timeComplexity || p.spaceComplexity ? `<div class="modal-section"><h4>⚡ Complexity</h4><div class="modal-complexity">
       ${p.timeComplexity ? `<span class="complexity-tag"><strong>Time:</strong> ${escHtml(p.timeComplexity)}</span>` : ''}
       ${p.spaceComplexity ? `<span class="complexity-tag"><strong>Space:</strong> ${escHtml(p.spaceComplexity)}</span>` : ''}
     </div></div>` : ''}
     ${p.notes ? `<div class="modal-section"><h4>📝 Notes</h4><p>${escHtml(p.notes)}</p></div>` : ''}`;
   document.getElementById('problemModal').classList.add('open');
+  
+  // Highlight the code block in the modal
+  const codeBlock = body.querySelector('pre code');
+  if (codeBlock && typeof hljs !== 'undefined') {
+      hljs.highlightElement(codeBlock);
+  }
 }
 document.getElementById('modalClose').addEventListener('click', () => document.getElementById('problemModal').classList.remove('open'));
 document.getElementById('problemModal').addEventListener('click', (e) => { if (e.target.id === 'problemModal') document.getElementById('problemModal').classList.remove('open'); });
@@ -305,6 +359,13 @@ function editProblem(id) {
   document.getElementById('formTimeComplexity').value = p.timeComplexity || '';
   document.getElementById('formSpaceComplexity').value = p.spaceComplexity || '';
   document.getElementById('formNotes').value = p.notes || '';
+  // Trigger VS Code Editor Update
+  if (typeof updateEditor === 'function') {
+      // Also update the language selection visual since value was just changed programmatically
+      const e = new Event('change');
+      document.getElementById('formLanguage').dispatchEvent(e);
+      updateEditor();
+  }
   // Remove old entry on save
   saveProblems(getProblems().filter(x => x.id !== id));
 }
@@ -531,5 +592,91 @@ function updatePerfStats(problems) {
   document.getElementById('totalPlatforms').textContent = new Set(problems.map(p => p.platform)).size;
 }
 
+// ===== VS CODE EDITOR LOGIC =====
+const vsEditor = document.getElementById('formSolution');
+const vsHighlight = document.getElementById('codeHighlight');
+const vsLineNumbers = document.getElementById('lineNumbers');
+const vsLangSelect = document.getElementById('formLanguage');
+const vsStatusLang = document.getElementById('vsStatusLang');
+const vsStatusLines = document.getElementById('vsStatusLines');
+const vsTabName = document.getElementById('vsTabName');
+
+function updateEditor() {
+    if (!vsEditor) return;
+    const text = vsEditor.value;
+    
+    // Update line numbers
+    const lines = text.split('\n').length;
+    vsLineNumbers.innerHTML = Array(Math.max(1, lines)).fill(0).map((_, i) => `<span>${i + 1}</span>`).join('');
+    
+    // Update highlight
+    const lang = vsLangSelect.value;
+    const codeObj = vsHighlight.querySelector('code');
+    codeObj.className = `language-${lang}`;
+    
+    if (text && typeof hljs !== 'undefined') {
+        try {
+            codeObj.innerHTML = hljs.highlight(text, { language: lang, ignoreIllegals: true }).value;
+        } catch (e) {
+            codeObj.textContent = text;
+        }
+    } else {
+        codeObj.textContent = text;
+    }
+    
+    // Update status bar
+    const cursorLine = text.substr(0, vsEditor.selectionStart).split('\n').length;
+    const cursorCol = vsEditor.selectionStart - text.lastIndexOf('\n', vsEditor.selectionStart - 1);
+    vsStatusLines.textContent = `Ln ${cursorLine}, Col ${cursorCol}`;
+}
+
+if (vsEditor) {
+    // Sync scroll
+    vsEditor.addEventListener('scroll', () => {
+        vsHighlight.scrollTop = vsEditor.scrollTop;
+        vsHighlight.scrollLeft = vsEditor.scrollLeft;
+        vsLineNumbers.scrollTop = vsEditor.scrollTop;
+    });
+
+    // Handle input and selection changes
+    vsEditor.addEventListener('input', updateEditor);
+    vsEditor.addEventListener('keyup', updateEditor);
+    vsEditor.addEventListener('click', updateEditor);
+
+    // Handle tab key
+    vsEditor.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = vsEditor.selectionStart;
+            const end = vsEditor.selectionEnd;
+            vsEditor.value = vsEditor.value.substring(0, start) + "    " + vsEditor.value.substring(end);
+            vsEditor.selectionStart = vsEditor.selectionEnd = start + 4;
+            updateEditor();
+        }
+        // Handle status update on arrow keys
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            setTimeout(updateEditor, 10);
+        }
+    });
+
+    // Handle language change
+    vsLangSelect.addEventListener('change', (e) => {
+        const lang = e.target.value;
+        const extMap = {
+            python: 'py', javascript: 'js', java: 'java', cpp: 'cpp', c: 'c',
+            go: 'go', rust: 'rs', sql: 'sql', typescript: 'ts', csharp: 'cs', other: 'txt'
+        };
+        vsTabName.textContent = `solution.${extMap[lang] || 'txt'}`;
+        
+        const displayMap = {
+            python: 'Python', javascript: 'JavaScript', java: 'Java', cpp: 'C++', c: 'C',
+            go: 'Go', rust: 'Rust', sql: 'SQL', typescript: 'TypeScript', csharp: 'C#', other: 'Other'
+        };
+        vsStatusLang.textContent = displayMap[lang] || 'Other';
+        updateEditor();
+    });
+}
+
 // ===== INIT =====
-refreshDashboard();
+loadBaseProblems();
+
